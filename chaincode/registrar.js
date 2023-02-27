@@ -1,5 +1,13 @@
+// This file contains all the business logic for the use-case for registrar's smart contract functions. 
+// This file then get exported to the global namespace and through index.js, it is made available 
+// for the property-registration project. This file will be exported to the global namespace.
+
 'use strict';
 
+// Now this fabric contract API, which is a npm module exported or made available by
+// the fabrics SDK for node.js, has a Contract class that it exports.This contract 
+// class is what makes this nodejs or JavaScript class, mapped to a particular
+// format expected by smart contracts inside of the fabric network. 
 const { Contract } = require('fabric-contract-api');
 
 class RegistrarContract extends Contract {
@@ -20,58 +28,112 @@ class RegistrarContract extends Contract {
     // a. Instantiate
     //      - This function will be triggered or invoked as part of the deployment or commit 
     //        process when the chaincode is deployed on top of a Fabric Network.
-
     async instantiate(ctx) {
-        console.log('Chaincode for Registrar is successfully deployed.');
-    }
-     /* 
-     *  ASK : To create the User Assets.
-     *  Initiator:  It will be the Registar. 
-     *  Output:     A Response asset on the ledger will be the output. 
-     *  Use case:   This transaction is called by the registar to approve the user 
-     *              on the property-registration-network.*
-    */
-    async approveNewUser(ctx, name, socialSecurityNumber) {
-        const userKey = ctx.stub.createCompositeKey('propertyreg.User.approve', [name, socialSecurityNumber]);
-
-        const userBuffer = await ctx.stub.getState(userKey)
-            .catch(err => console.log(err));
-        if (userBuffer) {
-            const user = JSON.parse(userBuffer.toString());
-            const data = {
-                upgradCoins: 0
-            }
-            user.push(data);
-            user.docType = "User";
-
-            return user;
-        } else {
-            return 'Asset with key ' + userKey + ' does not exist on the network';
-        }
+        console.log('Registrar\'s Chaincode is successfully deployed.');
     }
 
-    //2.  The registrar uses this function to create a new “Property” asset on the network 
-    //    after performing certain manual checks on the request received for property registration.
-
-
-    async approvePropertyRegistration(ctx, propertyID) {
-        const propertyKey = ctx.stub.createCompositeKey('propertyreg.Property', [propertyID]);
-        const propertyBuffer = await ctx.stub.getState(propertyKey)
-            .catch(err => console.log(err));
-
-
-        if (propertyBuffer) {
-            const property = JSON.parse(propertyBuffer.toString());
-            //code for approving property
-            return property;
-        } else {
-            return 'Asset with key ' + propertyKey + ' does not exist on the network';
-        }
-
-    }
     /* 
-     *  ASK :       To be used by Registrar's to view/inquire the current state of any property.
-     *  Initiator:  It will be the Registrar in this SmartContract. 
+    *  ASK :        To approve the User Requests which have been already raised by the User.
+    *  Initiator:   It will be the registrar.
+    *  Output:      A ‘User’ asset on the ledger will be the output.
+    *  Use case:    The registrar initiates a transaction to register a new user on the ledger 
+    *               based on the request received. *
+   */
+    async approveNewUser(ctx, name, socialSecurityNumber) {
+
+        // Composite Keys -> 
+        const userKey = ctx.stub.createCompositeKey('propertyreg.user', [name, socialSecurityNumber]);
+
+        // First check to see that the user's is present into the ledger of peers or not
+        // Fetch user's with the key from the blockchain. Use function "viewUser" for this.
+        let user = await this.viewUser(name, socialSecurityNumber);
+
+        //
+        if (user.startsWith("ERROR") && user.startsWith("Asset")) {
+            // This marks that either there is some issue connecting blockchain or other issue or 
+            // either the Asset does not EXISTS!!! . Thus skip further process.
+            return 'Asset with name ' + name + ' & ssn ' + socialSecurityNumber +
+                ' does not exists, skip process for NewUser Request Approval and ask the User' +
+                ' to first register on the chain';
+        }
+
+
+        // Secondly, It is required to Check that if the request has already been raised earlier or not.
+        // Fetch or View 'request' asset with the key from the blockcahin.
+        // Thus creating Composite Key ->
+        let requestKey = ctx.stub.createCompositeKey('propertyreg.user.request', [name, socialSecurityNumber]);
+
+        // Check to see that the Request's is present as an asset already into the ledger of peers or not
+        // Fetch request's with the key from the blockchain.
+        let request = await ctx.stub.getState(requestKey).catch(err => console.log(err));
+
+        if (request.length == 0) return 'Asset with name ' + name + ' & ssn ' + socialSecurityNumber +
+            ' do not exists and not available to approve.';
+
+        // Use Json.parse & toString() methods to convert the byte to first to string and then to JSON Object.
+        let userRequestJson = JSON.parse(request.toString());
+
+        userRequestJson.upgradCoins = 0; //adding field named “upgradCoins” as an attribute to the JSON Object
+
+        // Finally, call to update the peer's ledger. As we Know that data can only be saved over the 
+        // blokcchain network as bytes/buffers, so converting that JSON to string first and then to 
+        // the bytes to save over network using Bufer.from method.
+        const requestBuffer = Buffer.from(JSON.stringify(userRequestJson));
+
+        // putState - this method allows to store a particular state or an asset on top of the fabric n/w.
+        await ctx.stub.putState(requestKey, requestBuffer);
+
+        // return the Request Object layout to the caller function.
+        return userRequestJson;
+    }
+
+
+    /* 
+        *  ASK :        To approve the Property Registration Requests which have been already raised by the User.
+        *  Initiator:   It will be the registrar.
+        *  Output:      A ‘Property’ asset on the ledger will be the output. 
+        *  Use case:    The registrar uses this function to create a new “Property” asset on the 
+        *               network after performing certain manual checks on the request received for 
+        *               property registration. *
+       */
+    async approvePropertyRegistration(ctx, propertyId) {
+
+        // Firstly, it is required to Fetch property's 'request' asset using the key from the blockchain.
+        // creating CompositeKeys ->
+        let requestKey = ctx.stub.createCompositeKey('propertyreg.user.property', [propertyId]);
+
+        // First check to see that the Request's is present as an asset already into the ledger of peers or not
+        // Fetch request's with the key from the blockchain.
+        let property = await ctx.stub.getState(requestKey).catch(err => console.log(err));
+
+        if (property.length == 0) return 'Property Registration Request not available for the property ' +
+            ' having propertyID : ' + propertyId;
+
+        let propertyJson = JSON.parse(property.toString());
+
+        // Also check once from the propertyJson Object, that property has already been registered or otherwise
+        // skip the process and notify that property already registered earlier.
+        if (propertyJson['status'] === "registered" || propertyJson['status'] === "onSale")
+            return 'Property having propertyID ' + propertyId + ' is already registered and approved.'
+
+        propertyJson['status'] = "registered"; //else update the status key of the property objecy
+
+        // Finally, update the ledger to mark that this property asset have been approved by the registrar.
+        // As we Know that data can only be saved over the blokcchain network as bytes/buffers, so
+        // converting that JSON to string first and then to the bytes to save over network using
+        // Bufer.from method.
+        const requestBuffer = Buffer.from(JSON.stringify(propertyJson));
+
+        // putState - this method allows to store a particular state or an asset on top of the fabric n/w.
+        await ctx.stub.putState(requestKey, requestBuffer);
+
+        return propertyJson; //return Property Asset as an output.
+    }
+
+    /* 
+     *  ASK :       To be used by User's to view/inquire the current state of any property.
+     *  Initiator:  It will be the user in case of User(s) SmartContract. 
+     *              It will be a separate function in case of Registrar Smart Contract.
      *  Output:     Returns the Property's 'Status' from the ledger.
      *  Use case:   This function should be defined to view the current state of any property registered 
      *              on the ledger.
@@ -121,6 +183,34 @@ class RegistrarContract extends Contract {
                 ' does not exist on the network';
 
     }
+
+    /* 
+     *  ASK :       To be used to View/Return User's current state.
+     *  Initiator:  It will be the user in case of User(s) SmartContract. 
+     *              It will be a separate function in case of Registrar Smart Contract
+     *  Output:     Returns the User if exists or otherwise notify such Asset not exists.
+     *  Use case:   
+    */
+    async viewUser(ctx, name, socialSecurityNumber) {
+        try {
+            // Composite Keys -> 
+            const userKey = ctx.stub.createCompositeKey('propertyreg.user', [name, socialSecurityNumber]);
+
+            // First check to see that the user's is present into the ledger of peers or not
+            // Fetch user's with the key from the blockchain.
+            let user = await ctx.stub.getState(userKey).catch(err => console.log(err));
+
+            if (user.length != 0) {
+                return JSON.parse(user.toString());
+            } else {
+                return 'Asset with name ' + name + ' & ssn ' + socialSecurityNumber +
+                    ' having key ' + userKey + ' does not exist on the network';
+            }
+        } catch (error) {
+            return ("ERROR : " + error);
+        }
+    }
+
 }
 
 
