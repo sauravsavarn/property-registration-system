@@ -7,7 +7,7 @@
 // Now this fabric contract API, which is a npm module exported or made available by
 // the fabrics SDK for node.js, has a Contract class that it exports.This contract 
 // class is what makes this nodejs or JavaScript class, mapped to a particular
-// format expected by smart contracts inside of the fabric network. 
+// format expected by smart contracts inside of the fabric network.
 const { Contract } = require('fabric-contract-api');
 
 class RegistrarContract extends Contract {
@@ -213,5 +213,5 @@ class RegistrarContract extends Contract {
 
 }
 
-
-
+// export this contract
+module.exports = RegistrarContract;

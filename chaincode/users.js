@@ -7,7 +7,7 @@
 // Now this fabric contract API, which is a npm module exported or made available by
 // the fabrics SDK for node.js, has a Contract class that it exports.This contract 
 // class is what makes this nodejs or JavaScript class, mapped to a particular
-// format expected by smart contracts inside of the fabric network. 
+// format expected by smart contracts inside of the fabric network.
 const { Contract } = require('fabric-contract-api');
 
 // define a mapper/object having relationship between the TransactionID & the UpgradConins
@@ -32,11 +32,51 @@ class UsersContract extends Contract {
         super('propertyreg');
     }
 
+
     // a. Instantiate
     //      - This function will be triggered or invoked as part of the deployment or commit 
     //        process when the chaincode is deployed on top of a Fabric Network.
     async instantiate(ctx) {
         console.log('User\'s Chaincode is successfully deployed.');
+    }
+
+    /* 
+     *  ASK : To create the User Assets.
+     *  Initiator:  It will be the user. 
+     *  Output:     A ‘USER’ asset on the ledger will be the output. 
+     *  Use case:   This transaction is called by the user to create the USER assets 
+     *              on the property-registration-network.*
+    */
+    async createUser(ctx, name, emailID, phoneNumber, socialSecurityNumber) {
+        console.log("Inside createUser Function");
+
+        // Composite Keys -> 
+        const userKey = ctx.stub.createCompositeKey('propertyreg.user', [name, socialSecurityNumber]);
+
+        //first check to see that the User is present into the ledger of peers
+        //Fetch User's with the key from the blockchain.
+        let user = await ctx.stub.getState(userKey).catch( err => console.log(err) );
+
+        if(user.length != 0) 
+            return 'Asset with name ' + name + ' & social-security-number ' +socialSecurityNumber+
+                ' already exists, skip overwriting User\'s data';
+
+        const newUserObject = {
+            docType: 'user',
+            name: name,
+            emailID: emailID,
+            phoneNumber: phoneNumber,
+            socialSecurityNumber: socialSecurityNumber,
+            createdAt: ctx.stub.getTxTimestamp(),
+            updatedAt: ctx.stub.getTxTimestamp()
+        }
+
+        const userBuffer = Buffer.from(JSON.stringify(newUserObject));
+        // putState - thie method allows you to store a particular state or an asset on top of the fabric n/w.
+        await ctx.stub.putState(userKey, userBuffer);
+
+        // return the User Object newly created.
+        return newUserObject;
     }
 
     /* 
@@ -428,10 +468,10 @@ class UsersContract extends Contract {
             if (propertyJson['status'] === "onSale") {
 
                 // Finaly, check the buyer has "upgradCoins" >= PropertyPrice.
-                if(buyer['upgradCoins'] < propertyJson['price']) 
+                if (buyer['upgradCoins'] < propertyJson['price'])
                     return 'Property having proertyId ' + propertyId + ' cannot be purchased by ' +
-                    ' the User ' + buyerName + ' having social-security-number ' + buyerSSN +
-                    ' as the buyer has not the sufficient amout to buy the property';
+                        ' the User ' + buyerName + ' having social-security-number ' + buyerSSN +
+                        ' as the buyer has not the sufficient amout to buy the property';
 
                 // Fetch the property seller from the property-json 
                 let sellerKey = propertyJson['owner'];
@@ -439,8 +479,8 @@ class UsersContract extends Contract {
                 // fetch the seller of the property using sellerKey
                 let seller = await this.fetchUser(sellerKey);
 
-                if(seller.length == 0) return 'Seller of the property having propertyID ' + propertyId +
-                ' cannot be fetched from the network due ' + seller + ' . Please try again.';
+                if (seller.length == 0) return 'Seller of the property having propertyID ' + propertyId +
+                    ' cannot be fetched from the network due ' + seller + ' . Please try again.';
 
                 seller['upgradCoins'] += propertyJson['price']; //Increase the upGrad coin for the seller
                 buyer['upgradCoins'] -= propertyJson['price']; //Decrease the upGrad coin for the buyer
@@ -511,3 +551,6 @@ class UsersContract extends Contract {
         }
     }
 }
+
+// export this contract
+module.exports = UsersContract;

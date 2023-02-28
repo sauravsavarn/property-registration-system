@@ -13,5 +13,7 @@
 const propertyregContractUsers = require('./users.js');
 const propertyregContractRegistrar = require('./registrar.js');
 
+//module.exports.propertyregContractUsers = propertyregContractUsers;
+//module.exports.propertyregContractRegistrar = propertyregContractRegistrar;
 module.exports.contracts = [propertyregContractUsers, propertyregContractRegistrar]; 
 //NOTE, this is an array of various nodejs modules/contracts that we have included as part of this file.
