@@ -1,1 +1,1 @@
-Error: endorsement failure during invoke. response: status:500 message:"error in simulation: failed to execute transaction 2fa89f8110efca5981c9d5e76db885ba6e91a0ea3415acbf795951b9395e5513: could not launch chaincode propertyreg_4:43c5397f1d5e3b85f2bb7838c353774f46868248064541dbfb672ecd662d868f: chaincode registration failed: container exited with 1" 
+[34m2023-03-01 00:00:41.312 IST 0001 INFO[0m [chaincodeCmd] [34;1mchaincodeInvokeOrQuery[0m -> Chaincode invoke successful. result: status:200 

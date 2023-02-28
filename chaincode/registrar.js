@@ -22,7 +22,7 @@ class RegistrarContract extends Contract {
         // to create a new student asset or a certificate asset based on the business logic
         // that we are building, that student or certificate asset would get linked to the
         // global domain name for this smart contract, which would now be 'propertyreg'.  
-        super('propertyreg');
+        super('propertyreg.RegistrarContract');
     }
 
     // a. Instantiate
