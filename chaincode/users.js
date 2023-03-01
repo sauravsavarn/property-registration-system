@@ -404,23 +404,26 @@ class UsersContract extends Contract {
         const ownerKey = ctx.stub.createCompositeKey('propertyreg.user', [ownerName, ownerSSN]);
 
         // First check to see that the user's is present into the ledger of peers or not
-        // Fetch user's with the key from the blockchain. Use function "viewUser" for this.
-        let user = await this.viewUser(ownerName, ownerSSN);
+        // Fetch user's with the key from the blockchain.
+        let owner = await ctx.stub.getState(ownerKey).catch(err => console.log(err));
 
         //
-        if (user.startsWith("ERROR") && user.startsWith("Asset")) {
-
+        if (owner.length == 0) {
             // This marks that either there is some issue connecting blockchain or other issue or 
             // either the Asset does not EXISTS!!! . Thus skip further process.
-            return "Unable to fetch User's Asset because of the following reasons : " + user;
+            return 'Unable to fetch Owner\'s Asset with name ' + ownerName + ' & ssn ' + ownerSSN +
+                ' , skip process of updateProperty and proceed to first register on the blockchain ';
         }
+
+        // create a JSON Object from the owner byte data
+        let ownerJson = JSON.parse(owner.toString());
 
         // Also, to check that the User(s) initiated the request has already been registered or not.
         // This is done by checking whether the User(s) Assets have key =="upgradConins" or otherwise 
         // skip the process.
         // NOTE: only the registered USER is allowed to proceed further.
-        if (!user["upgradCoins"]) {
-            // This signifies that user is not yet registered, so skip further process
+        if (ownerJson["upgradCoins"] === undefined) {
+            // This signifies that owner is not yet registered, so skip further process
             return 'User ' + ownerName + ' having social-security-number : ' + ownerSSN + ' is yet not Registered ' +
                 ' hence, property state not exists right now.';
         }
@@ -445,6 +448,15 @@ class UsersContract extends Contract {
             // Finally, check if the property is registed or not. Only if it is 'registered' or 'onSale', 
             // it's status allowed to change.
             if (propertyJson['status'] === "registered" || propertyJson['status'] === "onSale") {
+
+                // Finally also check the propertyStatus can have only 2 values 
+                // 1-> 'onSale' & 2-> 'registered'. ANy other value passed as parameter should
+                // be rejected by the peers
+                if(propertyStatus != "registered" || propertyStatus != "onSale")
+                    return 'Property status cannot be updated for the owner '+ ownerName + 
+                    ' with social-security-number ' + ownerSSN + ' having propertyId ' + propertyId +
+                    ' because the incorrect value of the property status is passed.';
+                    
                 propertyJson['status'] = propertyStatus; //update the status key value
 
                 // As we Know that data can only be saved over the blokcchain network as bytes/buffers, so
