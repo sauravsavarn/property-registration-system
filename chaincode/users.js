@@ -209,7 +209,17 @@ class UsersContract extends Contract {
             let user = await ctx.stub.getState(userKey).catch(err => console.log(err));
 
             if (user.length != 0) {
-                return JSON.parse(user.toString());
+                //return JSON.parse(user.toString());
+                let userJson = JSON.parse(user.toString());
+
+                // Also, check that this User is registered by the Registrar or not.
+                if (!user["upgradCoins"]) {
+                    // This signifies that user is not yet registered, thus update the userJson to
+                    // notify this state to the Caller.
+                    userJson["status"]="NOT YET REGISTERED";
+                } else userJson["status"]="REGISTERED";
+
+                return userJson;
             } else {
                 return 'Asset with name ' + name + ' & ssn ' + socialSecurityNumber +
                     ' having key ' + userKey + ' does not exist on the network';
