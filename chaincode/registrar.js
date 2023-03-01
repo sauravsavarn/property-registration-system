@@ -46,10 +46,11 @@ class RegistrarContract extends Contract {
 
         // First check to see that the user's is present into the ledger of peers or not
         // Fetch user's with the key from the blockchain. Use function "viewUser" for this.
-        let user = await this.viewUser(name, socialSecurityNumber);
-
+        // let user = await this.viewUser(name, socialSecurityNumber);
+        let user = await ctx.stub.getState(userKey).catch(err => console.log(err));
+        console.log("approveNewUser user : " + user);
         //
-        if (user.startsWith("ERROR") && user.startsWith("Asset")) {
+        if (user.length==0) {
             // This marks that either there is some issue connecting blockchain or other issue or 
             // either the Asset does not EXISTS!!! . Thus skip further process.
             return 'Asset with name ' + name + ' & ssn ' + socialSecurityNumber +
@@ -57,6 +58,8 @@ class RegistrarContract extends Contract {
                 ' to first register on the chain';
         }
 
+        // create a JSON Object from the user byte data
+        let userJson = JSON.parse(user.toString());
 
         // Secondly, It is required to Check that if the request has already been raised earlier or not.
         // Fetch or View 'request' asset with the key from the blockcahin.
@@ -75,13 +78,25 @@ class RegistrarContract extends Contract {
 
         userRequestJson.upgradCoins = 0; //adding field named “upgradCoins” as an attribute to the JSON Object
 
+        // Also, update the User Asset, adding field named “upgradCoins” as an attribute to the JSON Object
+        userJson.upgradCoins = 0;
+
+        /* ******************************************************** */
+        /// 1=> First, call to update the REQUEST Asset
+
         // Finally, call to update the peer's ledger. As we Know that data can only be saved over the 
         // blokcchain network as bytes/buffers, so converting that JSON to string first and then to 
         // the bytes to save over network using Bufer.from method.
         const requestBuffer = Buffer.from(JSON.stringify(userRequestJson));
-
         // putState - this method allows to store a particular state or an asset on top of the fabric n/w.
         await ctx.stub.putState(requestKey, requestBuffer);
+
+        /// 2=> Secondly, call to update the USER Asset also
+        const userBuffer = Buffer.from(JSON.stringify(userJson));
+        // putState - this method allows to store a particular state or an asset on top of the fabric n/w.
+        await ctx.stub.putState(userKey, userBuffer);
+
+        /* ******************************************************** */
 
         // return the Request Object layout to the caller function.
         return userRequestJson;
@@ -195,13 +210,23 @@ class RegistrarContract extends Contract {
         try {
             // Composite Keys -> 
             const userKey = ctx.stub.createCompositeKey('propertyreg.user', [name, socialSecurityNumber]);
-
+            
             // First check to see that the user's is present into the ledger of peers or not
             // Fetch user's with the key from the blockchain.
             let user = await ctx.stub.getState(userKey).catch(err => console.log(err));
-
+            
             if (user.length != 0) {
-                return JSON.parse(user.toString());
+                //return JSON.parse(user.toString());
+                let userJson = JSON.parse(user.toString());
+            
+                // Also, check that this User is registered by the Registrar or not.
+                if (userJson["upgradCoins"] === undefined) {
+                    // This signifies that user is not yet registered, thus update the userJson to
+                    // notify this state to the Caller.
+                    userJson["status"]="NOT YET REGISTERED";
+                } else userJson["status"]="REGISTERED";
+
+                return userJson;
             } else {
                 return 'Asset with name ' + name + ' & ssn ' + socialSecurityNumber +
                     ' having key ' + userKey + ' does not exist on the network';
