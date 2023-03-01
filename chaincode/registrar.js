@@ -161,22 +161,25 @@ class RegistrarContract extends Contract {
         const ownerKey = ctx.stub.createCompositeKey('propertyreg.user', [ownerName, ownerSSN]);
 
         // First check to see that the user's is present into the ledger of peers or not
-        // Fetch user's with the key from the blockchain. Use function "viewUser" for this.
-        let user = await this.viewUser(ownerName, ownerSSN);
+        // Fetch user's with the key from the blockchain.
+        let user = await ctx.stub.getState(ownerKey).catch(err => console.log(err));
 
         //
-        if (user.startsWith("ERROR") && user.startsWith("Asset")) {
-
+        if (user.length == 0) {
             // This marks that either there is some issue connecting blockchain or other issue or 
             // either the Asset does not EXISTS!!! . Thus skip further process.
-            return "Unable to fetch User's Asset because of the following reasons : " + user;
+            return 'Unable to fetch User\'s Asset with name ' + ownerName + ' & ssn ' + ownerSSN +
+                ' , skip process of viewProperty as the user is not yet registered on the blockchain ';
         }
+
+        // create a JSON Object from the user byte data
+        let userJson = JSON.parse(user.toString());
 
         // Also, to check that the User(s) initiated the request has already been registered or not.
         // This is done by checking whether the User(s) Assets have key =="upgradConins" or otherwise 
         // skip the process.
         // NOTE: only the registered USER is allowed to proceed further.
-        if (!user["upgradCoins"]) {
+        if (userJson["upgradCoins"] === undefined) {
             // This signifies that user is not yet registered, so skip further process
             return 'User ' + ownerName + ' having social-security-number : ' + ownerSSN + ' is yet not Registered ' +
                 ' hence, property state not exists right now.';
@@ -191,7 +194,8 @@ class RegistrarContract extends Contract {
 
         if (property.length != 0) {
             let propertyJson = JSON.parse(property.toString());
-            return propertyJson['status']; //return the property status only
+            //return propertyJson['status']; //return the property status only
+            return propertyJson; //return entire details of the property state to the caller
         }
         else
             return 'Property Asset for owner ' + ownerName + ' having social-security-number ' + ownerSSN +
