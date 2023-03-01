@@ -112,9 +112,20 @@ class UsersContract extends Contract {
                 ' already exists, skip overwriting User\'s data';
         }
 
+        // create a JSON Object from the user byte data
+        let userJson = JSON.parse(user.toString());
+
         ////////////// NOTE here we have to check also 1 condition that user 's request is already accepted
         ////////////// so have to SKIP ........ to do later...
-
+        // Also, to check that the User(s) initiated the request has already been registered or not.
+        // This is done by checking whether the User(s) Assets have key =="upgradConins" or otherwise 
+        // skip the process.
+        // NOTE: only the registered USER is allowed to call this Function
+        if (userJson["upgradCoins"] != undefined) {
+            // This signifies that user is already registered and not a new user, so skip further process
+            return 'Asset with name ' + name + ' & ssn ' + socialSecurityNumber +
+                ' already registered, skip further process';
+        }
 
         // 
         const newUserRequestObject = {
@@ -150,7 +161,7 @@ class UsersContract extends Contract {
         const userKey = ctx.stub.createCompositeKey('propertyreg.user', [name, socialSecurityNumber]);
 
         // First check to see that the user's is present into the ledger of peers or not
-        // Fetch user's with the key from the blockchain. Use function "viewUser" for this.
+        // Fetch user's with the key from the blockchain.
         //let user = await this.viewUser(name, socialSecurityNumber);
         let user = await ctx.stub.getState(userKey).catch(err => console.log(err));
 
@@ -166,22 +177,6 @@ class UsersContract extends Contract {
         // create a JSON Object from the user byte data
         let userJson = JSON.parse(user.toString());
 
-        //
-        // if (!user.startsWith("ERROR") && !user.startsWith("Asset")) {
-
-        //     // Also, to check that the User(s) initiated the request has already been registered or not.
-        //     // This is done by checking whether the User(s) Assets have key =="upgradConins" or otherwise 
-        //     // skip the process.
-        //     // NOTE: only the registered USER is allowed to call this Function
-        //     if (!user["upgradCoins"]) {
-        //         // This signifies that user is not yet registered, so skip further process
-        //         return false;
-        //     }
-        // } else {
-        //     // This marks that either there is some issue connecting blockchain or other issue or 
-        //     // either the Asset does not EXISTS!!! . Thus skip further process.
-        //     return false;
-        // }
 
         // Also, to check that the User(s) initiated the request has already been registered or not.
         // This is done by checking whether the User(s) Assets have key =="upgradConins" or otherwise 
@@ -200,12 +195,12 @@ class UsersContract extends Contract {
 
         // get the upgradCoins based on the BankTransactionID else skip the process in case of error
         const amount = await this.buyUpgradCoins(bankTransactionID);
-        
+
         if (typeof amount != 'number') {
             // decline the transaction and skip further process as no numeric value of coins is received.
             return amount;
         }
-        
+
 
         // update the upgradCoins to the User Assets
         // user.upgradCoins += amount;
@@ -270,7 +265,7 @@ class UsersContract extends Contract {
         const ownerKey = ctx.stub.createCompositeKey('propertyreg.user', [ownerName, ownerSSN]);
 
         // First check to see that the user's is present into the ledger of peers or not
-        // Fetch user's with the key from the blockchain. Use function "viewUser" for this.
+        // Fetch user's with the key from the blockchain.
         // let user = await this.viewUser(ownerName, ownerSSN);
         let user = await ctx.stub.getState(ownerKey).catch(err => console.log(err));
 
@@ -349,7 +344,7 @@ class UsersContract extends Contract {
         const ownerKey = ctx.stub.createCompositeKey('propertyreg.user', [ownerName, ownerSSN]);
 
         // First check to see that the user's is present into the ledger of peers or not
-        // Fetch user's with the key from the blockchain. Use function "viewUser" for this.
+        // Fetch user's with the key from the blockchain.
         let user = await ctx.stub.getState(ownerKey).catch(err => console.log(err));
 
         //
@@ -372,18 +367,18 @@ class UsersContract extends Contract {
             return 'User ' + ownerName + ' having social-security-number : ' + ownerSSN + ' is yet not Registered ' +
                 ' hence, property state not exists right now.';
         }
-        
-        
+
+
         // Composite Key ->
         //let requestKey = ctx.stub.createCompositeKey('propertyreg.user.propertyreg.request', [ownerName, ownerSSN, propertyId]);
         let requestKey = ctx.stub.createCompositeKey('propertyreg.user.property', [propertyId]);
 
         // Fetch request's with the key from the blockchain.
         let property = await ctx.stub.getState(requestKey).catch(err => console.log(err));
-        
+
         if (property.length != 0) {
             let propertyJson = JSON.parse(property.toString());
-            
+
             //return propertyJson['status']; //return the property status only
             return propertyJson; //return entire details of the property state to the caller
         }
@@ -452,23 +447,23 @@ class UsersContract extends Contract {
                 // Finally also check the propertyStatus can have only 2 values 
                 // 1-> 'onSale' & 2-> 'registered'. ANy other value passed as parameter should
                 // be rejected by the peers
-                if(propertyStatus != "registered" || propertyStatus != "onSale")
-                    return 'Property status cannot be updated for the owner '+ ownerName + 
+                if (propertyStatus === "registered" || propertyStatus === "onSale") {
+
+                    propertyJson['status'] = propertyStatus; //update the status key value
+
+                    // As we Know that data can only be saved over the blokcchain network as bytes/buffers, so
+                    // converting that JSON to string first and then to the bytes to save over network using
+                    // Bufer.from method.
+                    const propertyBuffer = Buffer.from(JSON.stringify(propertyJson));
+
+                    // putState - call to update the property on the peer's ledger
+                    await ctx.stub.putState(requestKey, propertyBuffer);
+
+                    // return the Status update Notification to the caller.
+                    return 'Property status is updated';
+                } else return 'Property status cannot be updated for the owner ' + ownerName +
                     ' with social-security-number ' + ownerSSN + ' having propertyId ' + propertyId +
                     ' because the incorrect value of the property status is passed.';
-                    
-                propertyJson['status'] = propertyStatus; //update the status key value
-
-                // As we Know that data can only be saved over the blokcchain network as bytes/buffers, so
-                // converting that JSON to string first and then to the bytes to save over network using
-                // Bufer.from method.
-                const propertyBuffer = Buffer.from(JSON.stringify(propertyJson));
-
-                // putState - call to update the property on the peer's ledger
-                await ctx.stub.putState(requestKey, propertyBuffer);
-
-                // return the Status update Notification to the caller.
-                return 'Property status is updated';
 
             } else
                 return 'Property Asset for the owner ' + ownerName + ' with social-security-number ' +
@@ -494,25 +489,28 @@ class UsersContract extends Contract {
         const buyerKey = ctx.stub.createCompositeKey('propertyreg.user', [buyerName, buyerSSN]);
 
         // First check to see that the user's is present into the ledger of peers or not
-        // Fetch user's with the key from the blockchain. Use function "viewUser" for this.
-        let buyer = await this.viewUser(buyerName, buyerSSN);
+        // Fetch user's with the key from the blockchain.
+        let buyer = await ctx.stub.getState(buyerKey).catch(err => console.log(err));
 
         //
-        if (buyer.startsWith("ERROR") && buyer.startsWith("Asset")) {
-
+        if (buyer.length == 0) {
             // This marks that either there is some issue connecting blockchain or other issue or 
             // either the Asset does not EXISTS!!! . Thus skip further process.
-            return "Unable to fetch User's Asset because of the following reasons : " + user;
+            return 'Unable to fetch User\'s Asset with name ' + buyerName + ' & ssn ' + buyerSSN +
+                ' , skip process of purchaseProperty and proceed to first register on the blockchain ';
         }
 
-        // Also, to check that the Buyer(s) initiated the request has already been registered or not.
+        // create a JSON Object from the user byte data
+        let buyerJson = JSON.parse(buyer.toString());
+
+        // Also, to check that the User(s) initiated the request has already been registered or not.
         // This is done by checking whether the User(s) Assets have key =="upgradConins" or otherwise 
         // skip the process.
-        // NOTE: only the registered BUYER is allowed to proceed further.
-        if (!buyer["upgradCoins"]) {
-            // This signifies that buyer is not yet registered, so skip further process
-            return 'User ' + buyerName + ' having social-security-number : ' + buyerSSN +
-                ' is yet not Registered. Hence, property state not exists right now.';
+        // NOTE: only the registered USER is allowed to proceed further.
+        if (buyerJson["upgradCoins"] === undefined) {
+            // This signifies that user is not yet registered, so skip further process
+            return 'User ' + buyerName + ' having social-security-number : ' + buyerSSN + ' is yet not Registered ' +
+                ' hence, property state not exists right now.';
         }
 
         // Composite Key ->
@@ -529,7 +527,7 @@ class UsersContract extends Contract {
             if (propertyJson['status'] === "onSale") {
 
                 // Finaly, check the buyer has "upgradCoins" >= PropertyPrice.
-                if (buyer['upgradCoins'] < propertyJson['price'])
+                if (buyerJson['upgradCoins'] < propertyJson['price'])
                     return 'Property having proertyId ' + propertyId + ' cannot be purchased by ' +
                         ' the User ' + buyerName + ' having social-security-number ' + buyerSSN +
                         ' as the buyer has not the sufficient amout to buy the property';
@@ -538,14 +536,25 @@ class UsersContract extends Contract {
                 let sellerKey = propertyJson['owner'];
 
                 // fetch the seller of the property using sellerKey
-                let seller = await this.fetchUser(sellerKey);
+                // let seller = await this.fetchUser(sellerKey);
+                let seller = await ctx.stub.getState(sellerKey).catch(err => console.log(err));
+                if (seller.length == 0) {
+                    // This marks that either there is some issue connecting blockchain or other issue or 
+                    // either the Asset does not EXISTS!!! . Thus skip further process.
+                    return 'Seller of the property having propertyID ' + propertyId +
+                        ' cannot be fetched from the network. Please try again. ';
+                }
 
-                if (seller.length == 0) return 'Seller of the property having propertyID ' + propertyId +
-                    ' cannot be fetched from the network due ' + seller + ' . Please try again.';
+                // create a JSON Object from the seller's byte data
+                let sellerJson = JSON.parse(seller.toString());
 
-                seller['upgradCoins'] += propertyJson['price']; //Increase the upGrad coin for the seller
-                buyer['upgradCoins'] -= propertyJson['price']; //Decrease the upGrad coin for the buyer
+                //
+                sellerJson['upgradCoins'] = parseInt(sellerJson['upgradCoins']) + propertyJson['price']; //Increase the upGrad coin for the seller
+                buyerJson['upgradCoins'] -= propertyJson['price']; //Decrease the upGrad coin for the buyer
                 propertyJson['status'] = "registered"; //update the status key value
+
+                // Also, it is required to change the property ownerships as well
+                propertyJson['owner'] = buyerKey;
 
                 ///// NOW all seller, buyer & proeprty Assets states to be updated back on the peer
                 ///// ledger on the blockchain
@@ -556,12 +565,12 @@ class UsersContract extends Contract {
                 await ctx.stub.putState(requestKey, propertyBuffer);
 
                 // >2. Secondly, updating ledger of buyer
-                const buyerBuffer = Buffer.from(JSON.stringify(buyer));
+                const buyerBuffer = Buffer.from(JSON.stringify(buyerJson));
                 // putState - call to update the property on the peer's ledger
                 await ctx.stub.putState(buyerKey, buyerBuffer);
 
                 // >3. Lastly, updating ledger of seller
-                const sellerBuffer = Buffer.from(JSON.stringify(seller));
+                const sellerBuffer = Buffer.from(JSON.stringify(sellerJson));
                 // putState - call to update the property on the peer's ledger
                 await ctx.stub.putState(sellerKey, sellerBuffer);
 
@@ -585,7 +594,7 @@ class UsersContract extends Contract {
      *  Use case:   
     */
     async buyUpgradCoins(bankTransactionID) {
-        
+
         if (mapperTxnIdNUpgradCoins[bankTransactionID] != undefined) {
             // console.log("Number of UpgradCoins bought : " + mapperTxnIdNUpgradCoins[bankTransactionID]);
             return mapperTxnIdNUpgradCoins[bankTransactionID];

@@ -45,7 +45,7 @@ class RegistrarContract extends Contract {
         const userKey = ctx.stub.createCompositeKey('propertyreg.user', [name, socialSecurityNumber]);
 
         // First check to see that the user's is present into the ledger of peers or not
-        // Fetch user's with the key from the blockchain. Use function "viewUser" for this.
+        // Fetch user's with the key from the blockchain.
         // let user = await this.viewUser(name, socialSecurityNumber);
         let user = await ctx.stub.getState(userKey).catch(err => console.log(err));
         console.log("approveNewUser user : " + user);
